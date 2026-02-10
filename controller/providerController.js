@@ -18,6 +18,34 @@ exports.updateProfile = async (req, res) => {
   }
 };
 
+// Get all services for the provider with pagination
+exports.getProviderServices = async (req, res) => {
+  try {
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+
+    const services = await Service.find({ providerId: req.user._id })
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await Service.countDocuments({ providerId: req.user._id });
+
+    res.status(200).json({
+      services,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        hasMore: page * limit < total
+      }
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 // Add a new service
 exports.createService = async (req, res) => {
   try {
@@ -45,13 +73,79 @@ exports.createService = async (req, res) => {
   }
 };
 
-// Get requests for provider
+// Update a service
+exports.updateService = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title, description, price, category, isActive } = req.body;
+
+    const service = await Service.findOne({ _id: id, providerId: req.user._id });
+    
+    if (!service) {
+      return res.status(404).json({ error: "Service not found or unauthorized" });
+    }
+
+    if (title) service.title = title;
+    if (description) service.description = description;
+    if (price) service.price = price;
+    if (category) service.category = category;
+    if (typeof isActive !== 'undefined') service.isActive = isActive;
+
+    await service.save();
+    res.status(200).json({ message: "Service updated successfully", service });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Delete a service
+exports.deleteService = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const service = await Service.findOneAndDelete({ _id: id, providerId: req.user._id });
+    
+    if (!service) {
+      return res.status(404).json({ error: "Service not found or unauthorized" });
+    }
+
+    res.status(200).json({ message: "Service deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Get requests for provider with pagination and filtering
 exports.getProviderRequests = async (req, res) => {
   try {
-    const requests = await ServiceRequest.find({ providerId: req.user._id })
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 10;
+    const skip = (page - 1) * limit;
+    const status = req.query.status;
+
+    const filter = { providerId: req.user._id };
+    if (status) {
+      filter.status = status;
+    }
+
+    const requests = await ServiceRequest.find(filter)
       .populate("consumerId", "username email")
-      .populate("serviceId");
-    res.status(200).json(requests);
+      .populate("serviceId")
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limit);
+
+    const total = await ServiceRequest.countDocuments(filter);
+
+    res.status(200).json({
+      requests,
+      pagination: {
+        currentPage: page,
+        totalPages: Math.ceil(total / limit),
+        totalItems: total,
+        hasMore: page * limit < total
+      }
+    });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
@@ -69,7 +163,12 @@ exports.updateRequestStatus = async (req, res) => {
 
     request.status = status;
     await request.save();
-    res.status(200).json({ message: `Request ${status}`, request });
+    
+    const populatedRequest = await ServiceRequest.findById(requestId)
+      .populate("consumerId", "username email")
+      .populate("serviceId");
+    
+    res.status(200).json({ message: `Request ${status}`, request: populatedRequest });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }
