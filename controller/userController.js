@@ -115,6 +115,7 @@ exports.register = async (req, res) => {
   });
 
   //send message to user
+  console.log("User registered successfully:", email);
   res.send({ message: "User Register Succesfully" });
 };
 
@@ -394,6 +395,7 @@ exports.login = async (req, res) => {
   );
 
   //send message and token to user
+  console.log("User logged in successfully:", user.email);
   res.send({
     token: token,
     message: "Login succesfull",
@@ -433,9 +435,10 @@ exports.getSingleUser = async (req, res) => {
     }
 
     // Return the found user data
+    console.log("User found:", user.email);
     res.status(200).json(user);
   } catch (err) {
-    console.error(err);
+    console.error("Error fetching user:", err);
     res.status(500).json({ error: "Server error" });
   }
 };
@@ -446,9 +449,10 @@ exports.getUserById = async (req, res) => {
     if (!user) {
       return res.status(404).json({ error: "User not found" });
     }
+    console.log("User found by ID:", user._id);
     res.status(200).json(user);
   } catch (err) {
-    console.error(err);
+    console.error("Error fetching user by ID:", err);
     res.status(500).json({ error: "Server error" });
   }
 };
@@ -475,6 +479,7 @@ exports.updateUser = async (req, res) => {
   if (!user) {
     return res.status(400).json({ error: "Something went wrong" });
   }
+  console.log("User updated successfully:", user._id);
   res.send({ user: user, message: "User updated successfully" });
 };
 
@@ -484,6 +489,7 @@ exports.deleteUser = async (req, res) => {
   if (!user) {
     return res.status(400).json({ error: "User not found" });
   }
+  console.log("User deleted successfully:", req.params.id);
   res.send({ message: "User deleted successfully" });
 };
 
@@ -499,6 +505,7 @@ exports.isloggedIn = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ error: " Invalid user Information" });
     }
+    req.user = user;
     next();
   } catch (error) {
     return res.status(401).json({ error: error.message });
@@ -520,6 +527,7 @@ exports.isAdmin = async (req, res, next) => {
     if (user.role !== "admin") {
       return res.status(401).json({ error: " you are not elligible for this" });
     }
+    req.user = user;
     next();
   } catch (error) {
     return res.status(401).json({ error: "not good" });
@@ -549,6 +557,7 @@ exports.changeRole = async (req, res) => {
     return res.status(400).json({ error: "User not found" });
   }
 
+  console.log("User role updated:", user._id, req.body.role);
   res.send({ message: "User role updated successfully", user });
 };
 
@@ -562,5 +571,6 @@ exports.verifyUserByAdmin = async (req, res) => {
     return res.status(400).json({ error: "User not found" });
   }
 
+  console.log("User verified by admin:", user._id);
   res.send({ message: "User verified successfully", user });
 };

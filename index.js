@@ -21,6 +21,7 @@ app.use("/api/auth", authRoutes);
 app.use("/api/provider", providerRoutes);
 app.use("/api/consumer", consumerRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/categories", require("./routes/categoryRoutes"));
 
 // Retaining legacy routes for a while (optional)
 // app.use(categoryRouter);

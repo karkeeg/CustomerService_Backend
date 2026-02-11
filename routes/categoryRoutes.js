@@ -1,30 +1,9 @@
 const express = require("express");
-const {
-  addCategory,
-  getAllCategories,
-  getCategoryDetails,
-  updateCategory,
-  deleteCategory,
-} = require("../controller/categoryController");
-const { isloggedIn, isAdmin } = require("../controller/userController");
-const {
-  categoryCheck,
-  validationMethod,
-} = require("../middleware/validationScript");
-
 const router = express.Router();
+const categoryController = require("../controller/categoryController");
+// const { protect } = require("../middleware/authMiddleware"); // Optional: if we want to protect creation
 
-router.post(
-  "/addcategory",
-  isAdmin,
-  categoryCheck,
-  validationMethod,
-  addCategory
-);
-router.get("/getAllCategories", getAllCategories);
-// router.get('/getCategoriesDetail',getCategoryDetails)
-router.get("/getCategoriesDetail/:id", getCategoryDetails);
-router.put("/updateCategory/:id", updateCategory);
-router.delete("/deleteCategory/:id", deleteCategory);
+router.get("/", categoryController.getAllCategories);
+router.post("/", categoryController.createCategory); // Open for now, or add protect middleware
 
 module.exports = router;

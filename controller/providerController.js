@@ -51,13 +51,27 @@ exports.createService = async (req, res) => {
   try {
     const { title, description, price, category } = req.body;
     const user = await userModel.findById(req.user._id);
+    console.log("Creating service - User:", user.username, "Role:", user.role, "Approved:", user.isApproved);
     
     if (user.role !== "provider") {
+      console.log("Access denied: User is not a provider");
       return res.status(403).json({ error: "Only providers can create services" });
     }
 
     if (!user.isApproved) {
+      console.log("Access denied: Provider account pending approval");
       return res.status(403).json({ error: "Your account is pending approval" });
+    }
+
+    const Category = require("../models/categoryModel");
+    
+    // Check if category exists, if not create it
+    const existingCategory = await Category.findOne({ 
+      category_name: { $regex: new RegExp(`^${category}$`, 'i') } 
+    });
+
+    if (!existingCategory) {
+      await Category.create({ category_name: category });
     }
 
     const service = await Service.create({
@@ -67,8 +81,10 @@ exports.createService = async (req, res) => {
       price,
       category
     });
+    console.log("Service created successfully:", service);
     res.status(201).json({ message: "Service created successfully", service });
   } catch (error) {
+    console.error("Error creating service:", error);
     res.status(500).json({ error: error.message });
   }
 };
@@ -88,12 +104,25 @@ exports.updateService = async (req, res) => {
     if (title) service.title = title;
     if (description) service.description = description;
     if (price) service.price = price;
-    if (category) service.category = category;
+    if (category) {
+      service.category = category;
+      const Category = require("../models/categoryModel");
+      // Check if category exists, if not create it
+      const existingCategory = await Category.findOne({ 
+        category_name: { $regex: new RegExp(`^${category}$`, 'i') } 
+      });
+
+      if (!existingCategory) {
+        await Category.create({ category_name: category });
+      }
+    }
     if (typeof isActive !== 'undefined') service.isActive = isActive;
 
     await service.save();
+    console.log("Service updated successfully:", service);
     res.status(200).json({ message: "Service updated successfully", service });
   } catch (error) {
+    console.error("Error updating service:", error);
     res.status(500).json({ error: error.message });
   }
 };
