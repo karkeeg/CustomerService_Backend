@@ -28,6 +28,15 @@ const serviceSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    images: {
+      type: [String],
+      default: [],
+    },
+    moderationStatus: {
+      type: String,
+      enum: ["pending", "approved", "rejected"],
+      default: "pending",
+    },
   },
   { timestamps: true }
 );

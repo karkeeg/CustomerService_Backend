@@ -9,17 +9,19 @@ const {
   login,
   updateUser,
   deleteUser,
+  getMe,
   getUser,
   getUserById,
   changeRole,
   verifyUserByAdmin,
-  isAdmin,
+  googleLogin,
 } = require("../controller/userController");
 const {
   userRegisterCheck,
   validationMethod,
   userLoginCheck,
 } = require("../middleware/validationScript");
+const { isLoggedIn, isAdmin } = require("../middleware/authMiddleware");
 
 const router = require("express").Router();
 
@@ -34,11 +36,13 @@ router.get("/getSingleUser", getSingleUser);
 router.get("/getUserById/:id", getUserById);
 
 router.post("/login", userLoginCheck, login);
+router.post("/google-login", googleLogin);
 router.put("/updateUser/:id", updateUser);
 router.post("/deleteUser/:id", deleteUser);
 router.post("/getUser", getUser);
+router.get("/me", isLoggedIn, getMe);
 
-router.put("/changerole/:id", isAdmin, changeRole);
-router.post("/verifyuserbyadmin/:id", isAdmin, verifyUserByAdmin);
+router.put("/changerole/:id", isLoggedIn, isAdmin, changeRole);
+router.post("/verifyuserbyadmin/:id", isLoggedIn, isAdmin, verifyUserByAdmin);
 
 module.exports = router;

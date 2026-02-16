@@ -13,7 +13,14 @@ const userSchema = new mongoose.Schema(
     },
     password: {
       type: String,
-      required: true,
+      required: function() {
+        return !this.googleId;
+      },
+    },
+    googleId: {
+      type: String,
+      unique: true,
+      sparse: true,
     },
     isVerified: {
       type: Boolean,
@@ -31,6 +38,14 @@ const userSchema = new mongoose.Schema(
     isApproved: {
       type: Boolean,
       default: false,
+    },
+    profileImage: {
+      type: String,
+      default: "",
+    },
+    expoPushToken: {
+      type: String,
+      default: "",
     },
   },
   { timestamps: true }

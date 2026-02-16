@@ -7,6 +7,16 @@ const categorySchema = new mongoose.Schema(
       trim: true,
       required: true,
     },
+    minPrice: {
+      type: Number,
+      required: true,
+      default: 0,
+    },
+    maxPrice: {
+      type: Number,
+      required: true,
+      default: 1000000,
+    },
   },
   { timestamps: true }
 );

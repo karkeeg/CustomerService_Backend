@@ -1,121 +1,77 @@
-const CategoryModel = require("../models/categoryModel");
+const Category = require("../models/categoryModel");
 
-// add category
-exports.addCategory = async (req, res) => {
-  let categoryExists = await CategoryModel.findOne({
-    category_name: req.body.category_name,
-  });
-  if (categoryExists) {
-    return res.status(400).json({ error: "Category already exists" });
-  }
-
-  let newCategory = await CategoryModel.create({
-    category_name: req.body.category_name,
-  });
-
-  if (!newCategory) {
-    return res.status(400).json({ error: "Something went wrong" });
-  }
-  res.send(newCategory);
-};
-
-//get all categories
+// Get all categories
 exports.getAllCategories = async (req, res) => {
-  let categories = await CategoryModel.find();
-  if (!categories) {
-    return res.status(400).json({ error: "Something is wrong" });
+  try {
+    const categories = await Category.find().sort({ category_name: 1 });
+    res.status(200).json(categories);
+  } catch (error) {
+    console.error("Error fetching categories:", error);
+    res.status(500).json({ error: error.message });
   }
-  res.send(categories);
 };
 
-//get category details
-exports.getCategoryDetails = async (req, res) => {
-  let category = await CategoryModel.findById(req.params.id);
-  if (!category) {
-    return res.status(400).json({ error: "something went wrong" });
-  }
-  res.send(category);
-};
-
-//update catogory
-exports.updateCategory = async (req, res) => {
-  let categoryToUpdate = await CategoryModel.findByIdAndUpdate(
-    req.params.id,
-    {
-      category_name: req.body.category_name,
-    },
-    { new: true }
-  );
-  if (!categoryToUpdate) {
-    return res.status(400).json({ error: "somrthing went wrong" });
-  }
-  res.send(categoryToUpdate);
-};
-
-//delete catogory
-exports.deleteCategory = (req, res) => { 
-  CategoryModel.findByIdAndDelete(req.params.id)
-    .then((deleteCategory) => {
-      if (!deleteCategory) {
-        return res.status(400).json({ error: error.message });
-      } else {
-        return res.send({ message: "Category deleted Succesfully" });
-      }
-    })
-    .catch((error) => {
-      return res.status(500).json({ error: error.message });
+// Create a new category
+exports.createCategory = async (req, res) => {
+  try {
+    const { category_name, minPrice, maxPrice } = req.body;
+    
+    // Check if category already exists
+    const existingCategory = await Category.findOne({ 
+      category_name: { $regex: new RegExp(`^${category_name}$`, 'i') } 
     });
+
+    if (existingCategory) {
+      return res.status(400).json({ error: "Category already exists" });
+    }
+
+    const category = await Category.create({ 
+      category_name,
+      minPrice: minPrice || 0,
+      maxPrice: maxPrice || 1000000
+    });
+    console.log("Category created successfully:", category);
+    res.status(201).json(category);
+  } catch (error) {
+    console.error("Error creating category:", error);
+    res.status(500).json({ error: error.message });
+  }
 };
 
+// Update a category
+exports.updateCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { category_name, minPrice, maxPrice } = req.body;
 
+    const category = await Category.findById(id);
+    if (!category) {
+      return res.status(404).json({ error: "Category not found" });
+    }
 
+    if (category_name) category.category_name = category_name;
+    if (minPrice !== undefined) category.minPrice = minPrice;
+    if (maxPrice !== undefined) category.maxPrice = maxPrice;
 
-/*
-CRUD 
+    await category.save();
+    res.status(200).json(category);
+  } catch (error) {
+    console.error("Error updating category:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
 
-1. CREATE - modelname.create(new obj)
-
-2.REtrive - modelname.find({}) - all data
- modelname.findById(id) - single data
-    modelname.findOne(filter object) - single data
-    modelname.findOne() - first data
-
-
-3. UPDATE - modelname.findByIdAndUpdate(id,update obj,options) 
-    id-> id of the data to be updated
-    update obj -> what to update
-    options -> {new:true} - return updated data
-
-    4. DELETE - modelname.findByIdAndDelete(id) - delete data by id - removes the data from the database with given id 
-
-
-
-    // to get data from user
-req.body - data is passed using body of a form
-    body: (category_name:"xyz")
-
-    req.params - data is passed through url
-    profile/abc
-
-    req.query - data is passed through url using variable 
-    search?q=apple&q2=ball
-
-
-
-    //
-    res.json(json_object) - data in form of json
-    res.send(result) - return result whcih can be string object boolean 
-
-
-    //
-    status code(optional) 
-    it gives default as 200 OK
-                        400 bad request
-                        404 not found
-                        500 server error
-                        401 authorization error
-                        403 unauthorized error
-
-
-
-    */
+// Delete a category
+exports.deleteCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const category = await Category.findByIdAndDelete(id);
+    if (!category) {
+      return res.status(404).json({ error: "Category not found" });
+    }
+    res.status(200).json({ message: "Category deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting category:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
