@@ -473,6 +473,7 @@ exports.updateUser = async (req, res) => {
       email,
       password,
       role,
+      profileImage: req.body.profileImage, // Add profileImage support
     },
     { new: true }
   );
@@ -493,45 +494,15 @@ exports.deleteUser = async (req, res) => {
   res.send({ message: "User deleted successfully" });
 };
 
-//authenticastion and authorzation
-exports.isloggedIn = async (req, res, next) => {
-  try {
-    let token = req.headers.authorization;
-    if (!token) {
-      return res.status(401).json({ error: " you are not logged in" });
-    }
-    let decodedData = jwt.verify(token, process.env.JWT_SECRET);
-    let user = await userModel.findById(decodedData._id);
-    if (!user) {
-      return res.status(401).json({ error: " Invalid user Information" });
-    }
-    req.user = user;
-    next();
-  } catch (error) {
-    return res.status(401).json({ error: error.message });
-  }
-};
+// Authenticastion and authorzation (Moved to authMiddleware.js)
+// exports.isloggedIn = async (req, res, next) => { ... }
+// exports.isAdmin = async (req, res, next) => { ... }
 
-//authenticastion and authorzation
-exports.isAdmin = async (req, res, next) => {
-  let token = req.headers.authorization;
-  if (!token) {
-    return res.status(401).json({ error: " you are not logged in" });
+exports.getMe = async (req, res) => {
+  if (!req.user) {
+    return res.status(401).json({ error: "Not authenticated" });
   }
-  try {
-    let decodedData = jwt.verify(token, process.env.JWT_SECRET);
-    let user = await userModel.findById(decodedData._id);
-    if (!user) {
-      return res.status(401).json({ error: " Invalid user Information" });
-    }
-    if (user.role !== "admin") {
-      return res.status(401).json({ error: " you are not elligible for this" });
-    }
-    req.user = user;
-    next();
-  } catch (error) {
-    return res.status(401).json({ error: "not good" });
-  }
+  res.status(200).json(req.user);
 };
 
 exports.getUser = async (req, res) => {
@@ -573,4 +544,104 @@ exports.verifyUserByAdmin = async (req, res) => {
 
   console.log("User verified by admin:", user._id);
   res.send({ message: "User verified successfully", user });
+};
+
+const { OAuth2Client } = require("google-auth-library");
+const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
+
+// Google Login
+exports.googleLogin = async (req, res) => {
+  const { idToken, role } = req.body;
+
+  try {
+    let email, username, googleId, profileImage;
+
+    if (idToken) {
+      // Verify the ID token
+      const ticket = await client.verifyIdToken({
+        idToken: idToken,
+        audience: process.env.GOOGLE_CLIENT_ID,
+      });
+      const payload = ticket.getPayload();
+      
+      email = payload.email;
+      username = payload.name;
+      googleId = payload.sub;
+      profileImage = payload.picture;
+    } else {
+      // Fallback to body data (less secure - should transition to token only)
+      ({ email, username, googleId, profileImage } = req.body);
+    }
+
+    if (!email || !googleId) {
+      return res.status(400).json({ error: "Invalid Google credentials" });
+    }
+
+    // Check if user already exists with this googleId
+    let user = await userModel.findOne({ googleId });
+
+    if (!user) {
+      // Check if user exists with this email but no googleId
+      user = await userModel.findOne({ email: email.toLowerCase() });
+
+      if (user) {
+        // Link googleId to existing account
+        user.googleId = googleId;
+        if (profileImage && !user.profileImage) {
+          user.profileImage = profileImage;
+        }
+        await user.save();
+      } else {
+        // Create new user
+        // Generate a unique username if not provided
+        let finalUsername = username || email.split("@")[0];
+        
+        // Ensure username is clean
+        finalUsername = finalUsername.replace(/\s+/g, '').toLowerCase();
+
+        // Check if username exists
+        const usernameExists = await userModel.findOne({ username: finalUsername });
+        if (usernameExists) {
+          finalUsername = `${finalUsername}${Math.floor(Math.random() * 1000)}`;
+        }
+
+        user = await userModel.create({
+          username: finalUsername,
+          email: email.toLowerCase(),
+          googleId,
+          profileImage: profileImage || "",
+          role: role || "consumer",
+          isVerified: true, // Google emails are already verified
+          isApproved: role === "provider" ? false : true,
+        });
+      }
+    }
+
+    // Generate login token using jwt
+    const token = jwt.sign(
+      {
+        _id: user._id,
+        role: user.role,
+        user: user.username,
+        email: user.email,
+      },
+      process.env.JWT_SECRET
+    );
+
+    console.log("User logged in via Google successfully:", user.email);
+    res.send({
+      token: token,
+      message: "Login successful",
+      user: {
+        _id: user._id,
+        role: user.role,
+        user: user.username,
+        email: user.email,
+        profileImage: user.profileImage,
+      },
+    });
+  } catch (error) {
+    console.error("Google Login Error:", error);
+    res.status(500).json({ error: "Internal server error during Google Login" });
+  }
 };

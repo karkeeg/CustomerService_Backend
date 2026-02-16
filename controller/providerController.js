@@ -2,6 +2,7 @@ const ProviderProfile = require("../models/providerProfileModel");
 const Service = require("../models/serviceModel");
 const ServiceRequest = require("../models/serviceRequestModel");
 const userModel = require("../models/userModel");
+const { createNotification } = require("../utils/notificationHelper");
 
 // Create or update provider profile
 exports.updateProfile = async (req, res) => {
@@ -65,12 +66,19 @@ exports.createService = async (req, res) => {
 
     const Category = require("../models/categoryModel");
     
-    // Check if category exists, if not create it
+    // Fetch category to check price limits
     const existingCategory = await Category.findOne({ 
       category_name: { $regex: new RegExp(`^${category}$`, 'i') } 
     });
 
-    if (!existingCategory) {
+    if (existingCategory) {
+      if (price < existingCategory.minPrice || price > existingCategory.maxPrice) {
+        return res.status(400).json({ 
+          error: `Price must be between Rs.${existingCategory.minPrice} and Rs.${existingCategory.maxPrice} for the ${category} category.` 
+        });
+      }
+    } else {
+      // If category doesn't exist, create it with default limits
       await Category.create({ category_name: category });
     }
 
@@ -79,7 +87,8 @@ exports.createService = async (req, res) => {
       title,
       description,
       price,
-      category
+      category,
+      images: req.body.images || [], // Add images support
     });
     console.log("Service created successfully:", service);
     res.status(201).json({ message: "Service created successfully", service });
@@ -101,22 +110,31 @@ exports.updateService = async (req, res) => {
       return res.status(404).json({ error: "Service not found or unauthorized" });
     }
 
+    const Category = require("../models/categoryModel");
+    const targetCategoryName = category || service.category;
+    const targetPrice = price !== undefined ? price : service.price;
+
+    const existingCategory = await Category.findOne({ 
+      category_name: { $regex: new RegExp(`^${targetCategoryName}$`, 'i') } 
+    });
+
+    if (existingCategory) {
+      if (targetPrice < existingCategory.minPrice || targetPrice > existingCategory.maxPrice) {
+        return res.status(400).json({ 
+          error: `Price must be between Rs.${existingCategory.minPrice} and Rs.${existingCategory.maxPrice} for the ${targetCategoryName} category.` 
+        });
+      }
+    } else if (category) {
+      // If a new category is provided but doesn't exist, create it
+      await Category.create({ category_name: category });
+    }
+
     if (title) service.title = title;
     if (description) service.description = description;
-    if (price) service.price = price;
-    if (category) {
-      service.category = category;
-      const Category = require("../models/categoryModel");
-      // Check if category exists, if not create it
-      const existingCategory = await Category.findOne({ 
-        category_name: { $regex: new RegExp(`^${category}$`, 'i') } 
-      });
-
-      if (!existingCategory) {
-        await Category.create({ category_name: category });
-      }
-    }
+    if (price !== undefined) service.price = price;
+    if (category) service.category = category;
     if (typeof isActive !== 'undefined') service.isActive = isActive;
+    if (req.body.images) service.images = req.body.images; // Add images support
 
     await service.save();
     console.log("Service updated successfully:", service);
@@ -195,7 +213,29 @@ exports.updateRequestStatus = async (req, res) => {
     
     const populatedRequest = await ServiceRequest.findById(requestId)
       .populate("consumerId", "username email")
-      .populate("serviceId");
+      .populate("serviceId")
+      .populate("providerId", "username");
+
+    // Notify the consumer
+    const notificationData = {
+      recipient: populatedRequest.consumerId._id,
+      sender: req.user._id,
+      title: `Request ${status.charAt(0).toUpperCase() + status.slice(1)}`,
+      message: `Your request for ${populatedRequest.serviceId.title} has been ${status} by ${populatedRequest.providerId.username}.`,
+      type: "request",
+      metadata: { requestId: populatedRequest._id },
+    };
+
+    await createNotification(notificationData);
+
+    // Trigger Push Notification
+    const { sendPushNotification } = require("../utils/pushNotificationHelper");
+    await sendPushNotification(
+      populatedRequest.consumerId._id,
+      notificationData.title,
+      notificationData.message,
+      { requestId: populatedRequest._id.toString() }
+    );
     
     res.status(200).json({ message: `Request ${status}`, request: populatedRequest });
   } catch (error) {

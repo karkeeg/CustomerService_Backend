@@ -1,9 +1,11 @@
 const express = require("express");
 const router = express.Router();
 const categoryController = require("../controller/categoryController");
-// const { protect } = require("../middleware/authMiddleware"); // Optional: if we want to protect creation
+const { isLoggedIn, isAdmin } = require("../middleware/authMiddleware");
 
 router.get("/", categoryController.getAllCategories);
-router.post("/", categoryController.createCategory); // Open for now, or add protect middleware
+router.post("/", isLoggedIn, isAdmin, categoryController.createCategory);
+router.put("/:id", isLoggedIn, isAdmin, categoryController.updateCategory);
+router.delete("/:id", isLoggedIn, isAdmin, categoryController.deleteCategory);
 
 module.exports = router;

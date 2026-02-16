@@ -14,7 +14,7 @@ exports.getAllCategories = async (req, res) => {
 // Create a new category
 exports.createCategory = async (req, res) => {
   try {
-    const { category_name } = req.body;
+    const { category_name, minPrice, maxPrice } = req.body;
     
     // Check if category already exists
     const existingCategory = await Category.findOne({ 
@@ -25,11 +25,53 @@ exports.createCategory = async (req, res) => {
       return res.status(400).json({ error: "Category already exists" });
     }
 
-    const category = await Category.create({ category_name });
+    const category = await Category.create({ 
+      category_name,
+      minPrice: minPrice || 0,
+      maxPrice: maxPrice || 1000000
+    });
     console.log("Category created successfully:", category);
     res.status(201).json(category);
   } catch (error) {
     console.error("Error creating category:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Update a category
+exports.updateCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { category_name, minPrice, maxPrice } = req.body;
+
+    const category = await Category.findById(id);
+    if (!category) {
+      return res.status(404).json({ error: "Category not found" });
+    }
+
+    if (category_name) category.category_name = category_name;
+    if (minPrice !== undefined) category.minPrice = minPrice;
+    if (maxPrice !== undefined) category.maxPrice = maxPrice;
+
+    await category.save();
+    res.status(200).json(category);
+  } catch (error) {
+    console.error("Error updating category:", error);
+    res.status(500).json({ error: error.message });
+  }
+};
+
+// Delete a category
+exports.deleteCategory = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const category = await Category.findByIdAndDelete(id);
+    if (!category) {
+      return res.status(404).json({ error: "Category not found" });
+    }
+    res.status(200).json({ message: "Category deleted successfully" });
+  } catch (error) {
+    console.error("Error deleting category:", error);
     res.status(500).json({ error: error.message });
   }
 };

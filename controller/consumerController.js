@@ -10,7 +10,7 @@ exports.getAllServices = async (req, res) => {
     const search = req.query.search || "";
     const category = req.query.category;
 
-    const filter = { isActive: true };
+    const filter = { isActive: true, moderationStatus: "approved" };
     
     // Add search filter
     if (search) {
@@ -59,7 +59,29 @@ exports.requestService = async (req, res) => {
     
     const populatedRequest = await ServiceRequest.findById(request._id)
       .populate("providerId", "username email")
-      .populate("serviceId");
+      .populate("serviceId")
+      .populate("consumerId", "username");
+
+    // Notify the provider
+    const notificationData = {
+      recipient: providerId,
+      sender: req.user._id,
+      title: "New Service Request",
+      message: `${populatedRequest.consumerId.username} has requested your service: ${populatedRequest.serviceId.title}`,
+      type: "request",
+      metadata: { requestId: request._id },
+    };
+
+    await createNotification(notificationData);
+    
+    // Trigger Push Notification
+    const { sendPushNotification } = require("../utils/pushNotificationHelper");
+    await sendPushNotification(
+      providerId,
+      notificationData.title,
+      notificationData.message,
+      { requestId: request._id.toString() }
+    );
     
     res.status(201).json({ message: "Service requested successfully", request: populatedRequest });
   } catch (error) {
